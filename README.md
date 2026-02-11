@@ -4,6 +4,7 @@ Checkpoint is a full-stack solution designed for automated attendance tracking u
 
 ## 🚀 Key Features
 - **Real-Time Recognition**: Instant identification using DeepFace (backend) and face-api.js (frontend).
+- **BLE Beacon Proximity**: Secure proximity verification using Bluetooth Low Energy (Web Bluetooth API) to ensure users are physically present in the classroom.
 - **Attendance Logging**: Automated presence marking with duplicate prevention.
 - **Biometric Database**: Easy management of student face data and metadata.
 - **Responsive UI**: Modern dashboard built with Material UI for teachers and students.
@@ -19,6 +20,7 @@ Checkpoint is a full-stack solution designed for automated attendance tracking u
 - **Framework**: [React](https://reactjs.org/)
 - **UI Library**: Material UI (MUI)
 - **Browser AI**: face-api.js, MediaPipe
+- **Bluetooth**: Web Bluetooth API for BLE Beacon integration
 
 ## ⚙️ Setup Instructions
 
