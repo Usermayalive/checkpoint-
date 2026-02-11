@@ -1,0 +1,26 @@
+[
+    {
+        "id": "1",
+        "name": "Manas Vyas",
+        "mis": "112415121",
+        "image": "manas.jpg"
+    },
+    {
+        "id": "2",
+        "name": "Ishika",
+        "mis": "112415083",
+        "image": "ishika.jpg"
+    },
+    {
+        "id": "3",
+        "name": "Jaskaran",
+        "mis": "112415090",
+        "image": "jaskaran.jpg"
+    },
+    {
+        "id": "4",
+        "name": "Paridhi",
+        "mis": "112415148",
+        "image": "paridhi.jpg"
+    }
+]
