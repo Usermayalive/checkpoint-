@@ -3,5 +3,5 @@ uvicorn
 python-multipart
 numpy
 opencv-python
-deepface
-tf-keras
+supabase
+python-dotenv

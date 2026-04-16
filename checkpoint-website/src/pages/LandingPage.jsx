@@ -37,7 +37,7 @@ const LandingPage = () => {
                     }} className="border-light animate-fade-in">
                         <AutoAwesome sx={{ fontSize: 16, color: 'var(--primary)' }} />
                         <Typography variant="caption" sx={{ color: 'var(--primary)', fontWeight: 800, letterSpacing: 3, textTransform: 'uppercase', fontSize: '0.7rem' }}>
-                            Biometric Security Protocol
+
                         </Typography>
                     </Box>
 
@@ -144,25 +144,7 @@ const LandingPage = () => {
                     </Grid>
                 </Grid>
 
-                {/* Footer Stats */}
-                <Box sx={{ mt: 16, textAlign: 'center' }} className="animate-fade-in">
-                    <Stack direction="row" spacing={4} justifyContent="center" alignItems="center">
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="h5" className="outfit gradient-text-vibrant" sx={{ fontWeight: 900 }}>99.9%</Typography>
-                            <Typography variant="caption" sx={{ color: 'var(--text-secondary)', letterSpacing: 2, fontWeight: 700 }}>SECURITY</Typography>
-                        </Box>
-                        <Box sx={{ height: 30, width: 1, bgcolor: 'rgba(0,0,0,0.1)' }} />
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="h5" className="outfit gradient-text-vibrant" sx={{ fontWeight: 900 }}>MS</Typography>
-                            <Typography variant="caption" sx={{ color: 'var(--text-secondary)', letterSpacing: 2, fontWeight: 700 }}>LATENCY</Typography>
-                        </Box>
-                        <Box sx={{ height: 30, width: 1, bgcolor: 'rgba(0,0,0,0.1)' }} />
-                        <Box sx={{ textAlign: 'center' }}>
-                            <Typography variant="h5" className="outfit gradient-text-vibrant" sx={{ fontWeight: 900 }}>AES</Typography>
-                            <Typography variant="caption" sx={{ color: 'var(--text-secondary)', letterSpacing: 2, fontWeight: 700 }}>ENCRYPTED</Typography>
-                        </Box>
-                    </Stack>
-                </Box>
+
             </Container>
 
             <style>
