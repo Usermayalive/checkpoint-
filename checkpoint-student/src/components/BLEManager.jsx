@@ -1,14 +1,39 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button, CircularProgress, Alert, LinearProgress, Stack, Tooltip } from '@mui/material';
 import { BluetoothSearching, BluetoothConnected, Bluetooth, InfoOutlined, Lock } from '@mui/icons-material';
+import { bleService } from '../services/bleService';
 
 const VERIFIED_DISPLAY_SECONDS = 5;
+
+// The RSSI value required to count as "verified"
+// Depends on beacon transmit power and environment. -65 is a good start.
+const NATIVE_PROXIMITY_THRESHOLD = -65; 
 
 const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
     const [status, setStatus] = useState("idle"); // idle, scanning, handshake, verified
     const [countdown, setCountdown] = useState(VERIFIED_DISPLAY_SECONDS);
     const [error, setError] = useState(null);
     const [simulatedRssi, setSimulatedRssi] = useState(-90);
+
+    // Provide indication of whether we are running native real RSSI or web demo
+    const [isNativeMode, setIsNativeMode] = useState(bleService.isNative);
+
+    useEffect(() => {
+        // Initialize Capacitor BLE if native
+        if (bleService.isNative) {
+            bleService.initialize().catch(err => {
+                console.error("Failed to init BLE plugin:", err);
+                setError("Failed to initialize Bluetooth hardware on device.");
+            });
+        }
+
+        // Cleanup native scan on unmount
+        return () => {
+            if (bleService.isNative) {
+                bleService.stopNativeScan();
+            }
+        };
+    }, []);
 
     useEffect(() => {
         if (status !== 'verified') return;
@@ -20,24 +45,55 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
         return () => clearTimeout(timer);
     }, [status, countdown, onBeaconFound]);
 
-    const startProximityHandshake = async () => {
+    const startNativeHandshake = async () => {
+        try {
+            setError(null);
+            setStatus("scanning");
+            setSimulatedRssi(-100);
+
+            // Set a 30-second timeout — if beacon not found or too far, reject
+            const scanTimeout = setTimeout(() => {
+                bleService.stopNativeScan();
+                setStatus("rejected");
+                setError("You appear to be outside the classroom. Please move closer to the beacon and try again.");
+            }, 30000);
+
+            await bleService.startNativeScan(
+                (result) => {
+                    // Update UI with the *real* live RSSI value
+                    setSimulatedRssi(result.rssi);
+                    setStatus("handshake");
+
+                    // Check distance
+                    if (result.rssi >= NATIVE_PROXIMITY_THRESHOLD) {
+                        // Found it and close enough!
+                        clearTimeout(scanTimeout);
+                        bleService.stopNativeScan();
+                        setStatus("verified");
+                        setCountdown(VERIFIED_DISPLAY_SECONDS);
+                    }
+                },
+                (err) => {
+                    clearTimeout(scanTimeout);
+                    setError("Scan error: " + (err.message || err));
+                    setStatus("idle");
+                }
+            );
+
+        } catch (err) {
+            setError(err.message || "Failed to start native scan.");
+            setStatus("idle");
+        }
+    };
+
+    const startWebHandshake = async () => {
         try {
             setError(null);
             setStatus("scanning");
 
-            // PROXIMITY GATE: Browser picker ensures subject is physically present
-            const bleDevice = await navigator.bluetooth.requestDevice({
-                filters: [
-                    { name: 'MBeacon' },
-                    { name: 'mbeacon' },
-                    { services: [0xFDA5] }
-                ],
-                optionalServices: ['battery_service', 0xFDA5]
-            });
-
+            const bleDevice = await bleService.startWebScan();
             console.log(`SUBJECT HANDSHAKE: Device[${bleDevice.name}] confirmed.`);
 
-            // Listen for ONE advertisement to check classroom ID (Minor) if supported
             bleDevice.addEventListener('advertisementreceived', (event) => {
                 const manufacturerData = event.manufacturerData;
                 if (manufacturerData && requiredClassroom) {
@@ -53,7 +109,7 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
 
             setStatus("handshake");
 
-            // --- Signal Calibration Phase (Impressive Visuals) ---
+            // Web fallback: simulate RSSI fluctuating since we can't scan passively
             let currentRssi = -85;
             const interval = setInterval(() => {
                 setSimulatedRssi(prev => {
@@ -84,6 +140,14 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
         }
     };
 
+    const startProximityHandshake = () => {
+        if (isNativeMode) {
+            startNativeHandshake();
+        } else {
+            startWebHandshake();
+        }
+    };
+
     const handleSimulation = () => {
         setStatus("scanning");
         setTimeout(() => {
@@ -106,11 +170,17 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
 
     return (
         <Box className="glass-card border-light animate-fade-in" sx={{ p: 4, textAlign: 'center', maxWidth: 500, mx: 'auto', position: 'relative', borderRadius: 6 }}>
-            <Tooltip title="Technical Note: Using Web Bluetooth Handshake Heuristics instead of background ranging due to browser vendor restrictions.">
+            <Tooltip title={isNativeMode ? "Running Native Capacitor BLE with Real RSSI" : "Technical Note: Using Web Bluetooth Handshake Heuristics instead of background ranging due to browser vendor restrictions."}>
                 <Box sx={{ position: 'absolute', top: 16, right: 16, cursor: 'help', opacity: 0.6 }}>
-                    <InfoOutlined fontSize="small" />
+                    <InfoOutlined fontSize="small" color={isNativeMode ? "primary" : "inherit"} />
                 </Box>
             </Tooltip>
+
+            {isNativeMode && (
+                <Box sx={{ position: 'absolute', top: 16, left: 16 }}>
+                    <Typography variant="caption" sx={{ color: 'var(--primary)', fontWeight: 'bold' }}>NATIVE APP</Typography>
+                </Box>
+            )}
 
             <Box sx={{ mb: 4 }}>
                 <Typography variant="h4" className="gradient-text-vibrant outfit" sx={{ fontWeight: 900, mb: 1.5 }}>
@@ -170,8 +240,16 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
             {status === "handshake" && (
                 <Box sx={{ mt: 2 }}>
                     <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 900, color: 'var(--secondary)' }}>
-                        CALIBRATING SIGNAL DISTANCE...
+                        {isNativeMode ? `READING SIGNAL DISTANCE...` : `CALIBRATING SIGNAL DISTANCE...`}
                     </Typography>
+                    
+                    {/* Display live RSSI in handshake phase for Native mode */}
+                    {isNativeMode && simulatedRssi !== -100 && (
+                        <Typography variant="body2" sx={{ color: 'var(--primary)', fontWeight: 700, mb: 1 }}>
+                            Current RSSI: {simulatedRssi} dBm
+                        </Typography>
+                    )}
+                    
                     <LinearProgress sx={{ height: 6, borderRadius: 3 }} />
                 </Box>
             )}
@@ -198,7 +276,30 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
                 </Box>
             )}
 
-            {error && (
+            {status === "rejected" && (
+                <Box sx={{
+                    mt: 3, p: 4, borderRadius: 4,
+                    bgcolor: 'rgba(239, 68, 68, 0.05)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    textAlign: 'center'
+                }}>
+                    <Typography variant="h5" sx={{ fontWeight: 900, color: '#EF4444', mb: 1 }}>
+                        ⚠ OUTSIDE CLASSROOM
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'var(--text-secondary)', mb: 3 }}>
+                        No beacon signal detected within range. Please ensure you are physically inside the classroom and try again.
+                    </Typography>
+                    <Button
+                        className="premium-button"
+                        onClick={() => { setStatus("idle"); setError(null); }}
+                        sx={{ py: 1.5 }}
+                    >
+                        RETRY PROXIMITY CHECK
+                    </Button>
+                </Box>
+            )}
+
+            {error && status !== "rejected" && (
                 <Alert severity="error" sx={{ mt: 3, fontWeight: 700, borderRadius: 2 }}>
                     {error}
                 </Alert>

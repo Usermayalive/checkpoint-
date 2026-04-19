@@ -11,7 +11,7 @@ import {
     getDocs,
     limit
 } from 'firebase/firestore';
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
 
 export const attendanceService = {
     // Create a new session

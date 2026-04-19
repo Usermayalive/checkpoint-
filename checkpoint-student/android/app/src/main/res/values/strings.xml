@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Checkpoint Student</string>
+    <string name="title_activity_main">Checkpoint Student</string>
+    <string name="package_name">com.checkpoint.student</string>
+    <string name="custom_url_scheme">com.checkpoint.student</string>
+</resources>
