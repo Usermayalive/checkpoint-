@@ -10,8 +10,7 @@ const BLINKS_REQUIRED = 2;
 const DEPTH_VARIANCE_THRESHOLD = 0.00005; // Minimum z-variance for a real 3D face (MediaPipe z is small on webcam)
 const HEAD_TURN_THRESHOLD = 0.06; // How much head must turn (nose x-offset from center)
 const CHALLENGE_HOLD_FRAMES = 8; // How many consecutive frames the challenge must be held
-const MICRO_MOVEMENT_WINDOW = 15; // Frames to analyze for micro-movements
-const MICRO_MOVEMENT_MIN = 0.0001; // Minimum expected natural micro-movement
+// MICRO_MOVEMENT_WINDOW and MICRO_MOVEMENT_MIN removed — only used by analyzeMicroMovements
 
 const FaceRecognition = ({ onVerificationComplete }) => {
     const webcamRef = useRef(null);
