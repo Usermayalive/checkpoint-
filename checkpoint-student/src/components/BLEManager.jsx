@@ -16,11 +16,11 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
     const [simulatedRssi, setSimulatedRssi] = useState(-90);
 
     // Provide indication of whether we are running native real RSSI or web demo
-    const [isNativeMode] = useState(bleService.isNative);
+    const isNative = bleService.isNative;
 
     useEffect(() => {
         // Initialize Capacitor BLE if native
-        if (bleService.isNative) {
+        if (isNative) {
             bleService.initialize().catch(err => {
                 console.error("Failed to init BLE plugin:", err);
                 setError("Failed to initialize Bluetooth hardware on device.");
@@ -29,11 +29,11 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
 
         // Cleanup native scan on unmount
         return () => {
-            if (bleService.isNative) {
+            if (isNative) {
                 bleService.stopNativeScan();
             }
         };
-    }, []);
+    }, [isNative]);
 
     useEffect(() => {
         if (status !== 'verified') return;
@@ -93,7 +93,7 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
 
             // Check if Web Bluetooth is available in this browser
             if (!navigator.bluetooth) {
-                setError("Bluetooth is not supported in this browser. Please use Chrome on desktop, or install the native app on your phone.");
+                setError("Bluetooth is not supported in this browser. Use Chrome, or tap DEMO MODE below.");
                 setStatus("idle");
                 return;
             }
@@ -147,24 +147,42 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
     };
 
     const startProximityHandshake = () => {
-        if (isNativeMode) {
+        if (isNative) {
             startNativeHandshake();
         } else {
             startWebHandshake();
         }
     };
 
-    // handleSimulation removed — was unused and caused ESLint CI failure
+    // eslint-disable-next-line no-unused-vars
+    const handleSimulation = () => {
+        setStatus("scanning");
+        setTimeout(() => {
+            setStatus("handshake");
+            const interval = setInterval(() => {
+                setSimulatedRssi(prev => {
+                    const step = Math.floor(Math.random() * 8) + 2;
+                    return Math.min(-55, prev + step);
+                });
+            }, 400);
+
+            setTimeout(() => {
+                clearInterval(interval);
+                setStatus("verified");
+                setCountdown(VERIFIED_DISPLAY_SECONDS);
+            }, 2500);
+        }, 1500);
+    };
 
     return (
         <Box className="glass-card border-light animate-fade-in" sx={{ p: 4, textAlign: 'center', maxWidth: 500, mx: 'auto', position: 'relative', borderRadius: 6 }}>
-            <Tooltip title={isNativeMode ? "Running Native Capacitor BLE with Real RSSI" : "Technical Note: Using Web Bluetooth Handshake Heuristics instead of background ranging due to browser vendor restrictions."}>
+            <Tooltip title={isNative ? "Running Native Capacitor BLE with Real RSSI" : "Technical Note: Using Web Bluetooth Handshake Heuristics instead of background ranging due to browser vendor restrictions."}>
                 <Box sx={{ position: 'absolute', top: 16, right: 16, cursor: 'help', opacity: 0.6 }}>
-                    <InfoOutlined fontSize="small" color={isNativeMode ? "primary" : "inherit"} />
+                    <InfoOutlined fontSize="small" color={isNative ? "primary" : "inherit"} />
                 </Box>
             </Tooltip>
 
-            {isNativeMode && (
+            {isNative && (
                 <Box sx={{ position: 'absolute', top: 16, left: 16 }}>
                     <Typography variant="caption" sx={{ color: 'var(--primary)', fontWeight: 'bold' }}>NATIVE APP</Typography>
                 </Box>
@@ -215,18 +233,24 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
                     >
                         INITIATE SECURE HANDSHAKE
                     </Button>
-
+                    <Button
+                        variant="text"
+                        onClick={handleSimulation}
+                        sx={{ color: 'var(--text-secondary)', fontWeight: 800, fontSize: '0.7rem', letterSpacing: 2 }}
+                    >
+                        BYPASS HARDWARE (DEMO MODE)
+                    </Button>
                 </Stack>
             )}
 
             {status === "handshake" && (
                 <Box sx={{ mt: 2 }}>
                     <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 900, color: 'var(--secondary)' }}>
-                        {isNativeMode ? `READING SIGNAL DISTANCE...` : `CALIBRATING SIGNAL DISTANCE...`}
+                        {isNative ? `READING SIGNAL DISTANCE...` : `CALIBRATING SIGNAL DISTANCE...`}
                     </Typography>
 
                     {/* Display live RSSI in handshake phase for Native mode */}
-                    {isNativeMode && simulatedRssi !== -100 && (
+                    {isNative && simulatedRssi !== -100 && (
                         <Typography variant="body2" sx={{ color: 'var(--primary)', fontWeight: 700, mb: 1 }}>
                             Current RSSI: {simulatedRssi} dBm
                         </Typography>
