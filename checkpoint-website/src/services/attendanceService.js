@@ -15,8 +15,8 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 export const attendanceService = {
     // Create a new session
-    async createSession(teacherId, courseName, classroomId) {
-        const sessionCode = Math.floor(1000 + Math.random() * 9000).toString();
+    async createSession(teacherId, courseName, classroomId, providedCode = null) {
+        const sessionCode = providedCode || Math.floor(1000 + Math.random() * 9000).toString();
         const docRef = await addDoc(collection(db, "sessions"), {
             teacherId,
             courseName,

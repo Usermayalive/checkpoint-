@@ -149,7 +149,7 @@ const TeacherDashboard = () => {
 
         // 3. Sync to Firebase in background (Resiliently)
         try {
-            const data = await attendanceService.createSession("teacher_1", courseName, selectedClassroom);
+            const data = await attendanceService.createSession("teacher_1", courseName, selectedClassroom, sessionCode);
             console.log("DEBUG: Remote session sync successful:", data);
 
             // Update with real ID if needed, but keep existing metadata
