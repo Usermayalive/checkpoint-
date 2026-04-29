@@ -4,7 +4,7 @@ import { Security, CheckCircle, KeyboardDoubleArrowRight } from '@mui/icons-mate
 import BLEManager from './BLEManager';
 import FaceRecognition from './FaceRecognition';
 import { attendanceService } from '../services/attendanceService';
-import { demoStudents } from '../data/students';
+
 
 const StudentCheckIn = () => {
     const [activeStep, setActiveStep] = useState(0);
@@ -20,21 +20,6 @@ const StudentCheckIn = () => {
     const verifySessionCode = async () => {
         if (sessionCode.length === 4) {
             setIsSubmitting(true);
-
-            // Hardcoded demo bypass: code "1234" always works
-            if (sessionCode === '1234') {
-                setActiveSession({
-                    id: 'demo-session-1234',
-                    code: '1234',
-                    courseName: 'Demo Session',
-                    classroomId: 'ROOM-101',
-                    status: 'active'
-                });
-                setError('');
-                setIsSubmitting(false);
-                handleNext();
-                return;
-            }
 
             try {
                 const session = await attendanceService.verifySession(sessionCode);
@@ -64,8 +49,8 @@ const StudentCheckIn = () => {
     const [verifiedStudent, setVerifiedStudent] = useState(null);
 
     const handleFaceVerified = async (success, studentInfo) => {
-        if (success && activeSession) {
-            const student = studentInfo || demoStudents[0];
+        if (success && activeSession && studentInfo) {
+            const student = studentInfo;
             setVerifiedStudent(student);
             try {
                 await attendanceService.markAttendance(activeSession.id, {

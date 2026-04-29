@@ -44,7 +44,7 @@ import {
 } from '@mui/icons-material';
 import { saveAs } from 'file-saver';
 import { attendanceService } from '../services/attendanceService';
-import { demoBeacons } from '../data/demoData';
+import { classroomBeacons } from '../data/demoData';
 
 
 const TeacherDashboard = () => {
@@ -202,7 +202,7 @@ const TeacherDashboard = () => {
 
     return (
         <Box sx={{ flexGrow: 1, p: { xs: 0, md: 0 }, minHeight: '100vh', position: 'relative' }}>
-            {/* Header / Demo Toggle */}
+            {/* Header */}
             <Box className="glass-card border-light animate-fade-in" sx={{ p: 4, mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
                     <Typography variant="h4" className="gradient-text-vibrant outfit" sx={{ fontWeight: 900, lineHeight: 1 }}>
@@ -565,7 +565,7 @@ const TeacherDashboard = () => {
                                 '& .MuiInputLabel-root.Mui-focused': { color: 'var(--primary)' },
                             }}
                         >
-                            {demoBeacons.map((beacon) => (
+                            {classroomBeacons.map((beacon) => (
                                 <MenuItem key={beacon.minor} value={beacon.minor} sx={{ fontWeight: 600 }}>
                                     {beacon.classroom}
                                 </MenuItem>

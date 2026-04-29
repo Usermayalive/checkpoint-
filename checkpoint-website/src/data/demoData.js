@@ -1,31 +1,8 @@
-export const demoStudents = [
-    {
-        id: '2023001',
-        name: 'Rahul Sharma',
-        mis: '112313054',
-        photo: 'https://i.pravatar.cc/150?img=1',
-        faceEncoding: 'mock_1',
-        department: 'Computer Science'
-    },
-    {
-        id: '2023002',
-        name: 'Priya Patel',
-        mis: '112313055',
-        photo: 'https://i.pravatar.cc/150?img=2',
-        faceEncoding: 'mock_2',
-        department: 'Computer Science'
-    },
-    {
-        id: '2023003',
-        name: 'Amit Kumar',
-        mis: '112313056',
-        photo: 'https://i.pravatar.cc/150?img=3',
-        faceEncoding: 'mock_3',
-        department: 'Data Science'
-    }
-];
+// Classroom beacon configuration
+// These map to the physical BLE beacons deployed in each classroom
+// Update these values to match your actual beacon hardware configuration
 
-export const demoBeacons = [
+export const classroomBeacons = [
     {
         uuid: 'fda50693-a4e2-4fb1-afcf-c6eb07647825',
         major: 10001,

@@ -1,15 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Box, Typography, Button, CircularProgress, Alert, LinearProgress, Stack, Tooltip } from '@mui/material';
-import { BluetoothSearching, BluetoothConnected, Bluetooth, InfoOutlined, Lock } from '@mui/icons-material';
+import { Box, Typography, Button, CircularProgress, Alert, LinearProgress, Stack, Tooltip, Chip } from '@mui/material';
+import { BluetoothSearching, BluetoothConnected, Bluetooth, InfoOutlined, Lock, SignalCellularAlt } from '@mui/icons-material';
 
 const VERIFIED_DISPLAY_SECONDS = 5;
 
+// RSSI threshold for proximity verification
+const PROXIMITY_THRESHOLD = -65;
+
+// Consecutive readings above threshold needed to confirm
+const REQUIRED_CONFIRMATIONS = 3;
+
 const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
-    const [status, setStatus] = useState("idle"); // idle, scanning, handshake, verified
+    const [status, setStatus] = useState("idle"); // idle, scanning, handshake, verified, rejected
     const [countdown, setCountdown] = useState(VERIFIED_DISPLAY_SECONDS);
     const [error, setError] = useState(null);
-    const [simulatedRssi, setSimulatedRssi] = useState(-90);
+    const [rssi, setRssi] = useState(null);
+    const [deviceName, setDeviceName] = useState(null);
+    const [rssiHistory, setRssiHistory] = useState([]);
+    const [isEstimate, setIsEstimate] = useState(false);
 
+    const confirmCountRef = useRef(0);
+    const scanTimeoutRef = useRef(null);
+    const cleanupRef = useRef(null);
+
+    // Countdown after verification
     useEffect(() => {
         if (status !== 'verified') return;
         if (countdown <= 0) {
@@ -20,112 +34,193 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
         return () => clearTimeout(timer);
     }, [status, countdown, onBeaconFound]);
 
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (cleanupRef.current) cleanupRef.current();
+            if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+        };
+    }, []);
+
+    // Handle incoming RSSI reading
+    const handleRssiReading = (result) => {
+        const currentRssi = result.rssi;
+        setRssi(currentRssi);
+        setDeviceName(result.name);
+        setIsEstimate(!!result.isEstimate);
+        setStatus("handshake");
+
+        setRssiHistory(prev => [...prev.slice(-19), currentRssi]);
+
+        if (currentRssi >= PROXIMITY_THRESHOLD) {
+            confirmCountRef.current += 1;
+            if (confirmCountRef.current >= REQUIRED_CONFIRMATIONS) {
+                if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+                if (cleanupRef.current) cleanupRef.current();
+                setStatus("verified");
+                setCountdown(VERIFIED_DISPLAY_SECONDS);
+            }
+        } else {
+            confirmCountRef.current = Math.max(0, confirmCountRef.current - 1);
+        }
+    };
+
     const startProximityHandshake = async () => {
         try {
             setError(null);
             setStatus("scanning");
+            setRssi(null);
+            setRssiHistory([]);
+            confirmCountRef.current = 0;
 
-            // PROXIMITY GATE: Browser picker ensures subject is physically present
-            const bleDevice = await navigator.bluetooth.requestDevice({
-                filters: [
-                    { name: 'MBeacon' },
-                    { name: 'mbeacon' },
-                    { services: [0xFDA5] }
-                ],
-                optionalServices: ['battery_service', 0xFDA5]
+            if (!navigator.bluetooth) {
+                setError("Web Bluetooth is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
+                setStatus("idle");
+                return;
+            }
+
+            // 45-second timeout
+            scanTimeoutRef.current = setTimeout(() => {
+                if (cleanupRef.current) cleanupRef.current();
+                setStatus("rejected");
+                setError("Could not confirm proximity. Make sure you are near the classroom beacon.");
+            }, 45000);
+
+            // Step 1: User picks a BLE device
+            const device = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: ['battery_service']
             });
 
-            console.log(`SUBJECT HANDSHAKE: Device[${bleDevice.name}] confirmed.`);
+            console.log(`[BLE] Device selected: ${device.name || device.id}`);
+            setDeviceName(device.name || device.id);
 
-            // Listen for ONE advertisement to check classroom ID (Minor) if supported
-            bleDevice.addEventListener('advertisementreceived', (event) => {
-                const manufacturerData = event.manufacturerData;
-                if (manufacturerData && requiredClassroom) {
-                    const dataView = manufacturerData.values().next().value;
-                    if (dataView) {
-                        const minor = dataView.getUint16(dataView.byteLength - 2);
-                        if (minor !== parseInt(requiredClassroom)) {
-                            console.warn(`Classroom mismatch: expected ${requiredClassroom}, found ${minor}`);
-                        }
-                    }
-                }
-            }, { once: true });
+            // Step 2: Use watchAdvertisements() for real RSSI (Chrome 93+)
+            if (device.watchAdvertisements) {
+                const abortController = new AbortController();
+                cleanupRef.current = () => {
+                    abortController.abort();
+                    console.log("[BLE] Stopped watching advertisements");
+                };
 
-            setStatus("handshake");
-
-            // --- Signal Calibration Phase (Impressive Visuals) ---
-            let currentRssi = -85;
-            const interval = setInterval(() => {
-                setSimulatedRssi(prev => {
-                    const fluctuation = Math.floor(Math.random() * 5) - 2;
-                    const next = Math.max(-80, Math.min(-50, prev + 3 + fluctuation));
-                    if (next >= -65) {
-                        setStatus("verified");
-                    }
-                    return next;
+                device.addEventListener('advertisementreceived', (event) => {
+                    handleRssiReading({
+                        name: event.name || device.name || device.id,
+                        rssi: event.rssi,
+                        txPower: event.txPower,
+                        device: device
+                    });
                 });
-            }, 500);
 
-            setTimeout(() => {
-                clearInterval(interval);
-                setStatus("verified");
-                setCountdown(VERIFIED_DISPLAY_SECONDS);
-            }, 3000);
+                try {
+                    await device.watchAdvertisements({ signal: abortController.signal });
+                    console.log("[BLE] watchAdvertisements() active — receiving real RSSI");
+                } catch (watchErr) {
+                    console.warn("[BLE] watchAdvertisements() failed, falling back to GATT:", watchErr);
+                    await attemptGattFallback(device);
+                }
+            } else {
+                // Fallback for browsers without watchAdvertisements
+                console.warn("[BLE] watchAdvertisements() not available — using GATT fallback");
+                await attemptGattFallback(device);
+            }
 
         } catch (err) {
+            if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+
             if (err.name === 'NotFoundError') {
-                setError("No classroom beacon detected. Move closer to the door.");
+                setError("No BLE device selected. Please select your classroom beacon.");
             } else if (err.name === 'NotAllowedError') {
-                setError("Handshake cancelled by user.");
+                setError("Bluetooth permission denied. Please allow Bluetooth access.");
             } else {
-                setError(err.message);
+                setError(err.message || "Failed to start Bluetooth scan.");
             }
             setStatus("idle");
         }
     };
 
-    const handleSimulation = () => {
-        setStatus("scanning");
-        setTimeout(() => {
-            setStatus("handshake");
-            let currentRssi = -82;
-            const interval = setInterval(() => {
-                setSimulatedRssi(prev => {
-                    const step = Math.floor(Math.random() * 8) + 2;
-                    return Math.min(-55, prev + step);
-                });
-            }, 400);
+    // GATT connection fallback — can't get real RSSI, but confirms device reachability
+    const attemptGattFallback = async (device) => {
+        try {
+            const server = await device.gatt.connect();
+            console.log("[BLE] GATT connected — device confirmed nearby");
+            handleRssiReading({
+                name: device.name || device.id,
+                rssi: -55, // estimate
+                device: device,
+                isEstimate: true
+            });
+            server.disconnect();
+        } catch (gattErr) {
+            console.warn("[BLE] GATT failed:", gattErr);
+            handleRssiReading({
+                name: device.name || device.id,
+                rssi: -75,
+                device: device,
+                isEstimate: true
+            });
+        }
+    };
 
-            setTimeout(() => {
-                clearInterval(interval);
-                setStatus("verified");
-                setCountdown(VERIFIED_DISPLAY_SECONDS);
-            }, 2500);
-        }, 1500);
+    const getSignalStrength = () => {
+        if (rssi === null) return 0;
+        return Math.max(0, Math.min(100, ((rssi + 100) / 60) * 100));
+    };
+
+    const getSignalColor = () => {
+        if (rssi === null) return 'rgba(124, 58, 237, 0.3)';
+        if (rssi >= -50) return '#10B981';
+        if (rssi >= -65) return '#F59E0B';
+        if (rssi >= -80) return '#F97316';
+        return '#EF4444';
+    };
+
+    const getSignalLabel = () => {
+        if (rssi === null) return 'NO SIGNAL';
+        if (rssi >= -50) return 'EXCELLENT';
+        if (rssi >= -65) return 'GOOD';
+        if (rssi >= -80) return 'FAIR';
+        return 'WEAK';
     };
 
     return (
-        <Box className="glass-card border-light animate-fade-in" sx={{ p: 4, textAlign: 'center', maxWidth: 500, mx: 'auto', position: 'relative', borderRadius: 6 }}>
-            <Tooltip title="Technical Note: Using Web Bluetooth Handshake Heuristics instead of background ranging due to browser vendor restrictions.">
+        <Box className="glass-card border-light animate-fade-in" sx={{ p: 4, textAlign: 'center', maxWidth: 520, mx: 'auto', position: 'relative', borderRadius: 6 }}>
+            {/* Platform indicator */}
+            <Chip
+                label="WEB BLUETOOTH"
+                size="small"
+                sx={{
+                    position: 'absolute', top: 16, left: 16,
+                    bgcolor: 'rgba(14, 165, 233, 0.08)',
+                    color: '#0EA5E9',
+                    fontWeight: 900, fontSize: '0.6rem', letterSpacing: 1,
+                    border: '1px solid rgba(14, 165, 233, 0.2)'
+                }}
+            />
+
+            <Tooltip title="Real-time BLE proximity verification using hardware RSSI signal strength via Web Bluetooth API">
                 <Box sx={{ position: 'absolute', top: 16, right: 16, cursor: 'help', opacity: 0.6 }}>
-                    <InfoOutlined fontSize="small" />
+                    <InfoOutlined fontSize="small" color="primary" />
                 </Box>
             </Tooltip>
 
-            <Box sx={{ mb: 4 }}>
+            {/* Header */}
+            <Box sx={{ mb: 4, mt: 2 }}>
                 <Typography variant="h4" className="gradient-text-vibrant outfit" sx={{ fontWeight: 900, mb: 1.5 }}>
                     PROXIMITY LOCK
                 </Typography>
                 <Typography variant="body2" sx={{ color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: 1 }}>
                     {status === "idle" ? "PHYSICAL VALIDATION PENDING"
-                        : status === "scanning" ? "LISTENING FOR BEACON PACKETS..."
-                            : status === "handshake" ? "BEACON HANDSHAKE ESTABLISHED"
-                                : "PROXIMITY STATUS: SECURE"}
+                        : status === "scanning" ? "SCANNING FOR BLE BEACONS..."
+                            : status === "handshake" ? `BEACON DETECTED: ${deviceName || 'UNKNOWN'}`
+                                : status === "rejected" ? "PROXIMITY CHECK FAILED"
+                                    : "PROXIMITY STATUS: VERIFIED"}
                 </Typography>
             </Box>
 
+            {/* Radar Animation */}
             <Box sx={{
-                position: 'relative', width: 200, height: 200, mx: 'auto', mb: 6,
+                position: 'relative', width: 200, height: 200, mx: 'auto', mb: 4,
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
                 {[1, 2, 3].map((i) => (
@@ -147,35 +242,132 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
                 {status === "verified" && <BluetoothConnected sx={{ fontSize: 80, color: '#10B981', filter: 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.4))' }} />}
             </Box>
 
+            {/* Idle: Start Button */}
             {status === "idle" && (
-                <Stack spacing={2}>
-                    <Button
-                        className="premium-button"
-                        onClick={startProximityHandshake}
-                        fullWidth
-                        sx={{ py: 2 }}
-                    >
-                        INITIATE SECURE HANDSHAKE
-                    </Button>
-                    <Button
-                        variant="text"
-                        onClick={handleSimulation}
-                        sx={{ color: 'var(--text-secondary)', fontWeight: 800, fontSize: '0.7rem', letterSpacing: 2 }}
-                    >
-                        BYPASS HARDWARE (DEMO MODE)
-                    </Button>
-                </Stack>
+                <Button
+                    className="premium-button"
+                    onClick={startProximityHandshake}
+                    fullWidth
+                    sx={{ py: 2 }}
+                >
+                    INITIATE SECURE HANDSHAKE
+                </Button>
             )}
 
+            {/* Handshake: Real-time RSSI Display */}
             {status === "handshake" && (
                 <Box sx={{ mt: 2 }}>
-                    <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 900, color: 'var(--secondary)' }}>
-                        CALIBRATING SIGNAL DISTANCE...
+                    <Typography variant="caption" sx={{ display: 'block', mb: 2, fontWeight: 900, color: 'var(--secondary)', letterSpacing: 1 }}>
+                        READING SIGNAL STRENGTH...
                     </Typography>
-                    <LinearProgress sx={{ height: 6, borderRadius: 3 }} />
+
+                    {rssi !== null && (
+                        <Box sx={{
+                            p: 3, mb: 2, borderRadius: 4,
+                            bgcolor: 'rgba(0,0,0,0.02)',
+                            border: `1px solid ${getSignalColor()}33`,
+                        }}>
+                            <Stack direction="row" justifyContent="center" alignItems="baseline" spacing={1}>
+                                <SignalCellularAlt sx={{ color: getSignalColor(), fontSize: 28 }} />
+                                <Typography variant="h2" sx={{ fontWeight: 900, color: getSignalColor(), fontFamily: 'monospace' }}>
+                                    {rssi}
+                                </Typography>
+                                <Typography variant="h6" sx={{ color: 'var(--text-secondary)', fontWeight: 700 }}>dBm</Typography>
+                            </Stack>
+
+                            <Stack direction="row" justifyContent="center" spacing={2} sx={{ mt: 1 }}>
+                                <Chip
+                                    label={getSignalLabel()}
+                                    size="small"
+                                    sx={{
+                                        bgcolor: `${getSignalColor()}15`,
+                                        color: getSignalColor(),
+                                        fontWeight: 900, fontSize: '0.65rem',
+                                        border: `1px solid ${getSignalColor()}30`
+                                    }}
+                                />
+                                {isEstimate && (
+                                    <Chip
+                                        label="ESTIMATED"
+                                        size="small"
+                                        sx={{
+                                            bgcolor: 'rgba(245, 158, 11, 0.08)',
+                                            color: '#F59E0B',
+                                            fontWeight: 900, fontSize: '0.6rem',
+                                            border: '1px solid rgba(245, 158, 11, 0.2)'
+                                        }}
+                                    />
+                                )}
+                                {deviceName && (
+                                    <Chip
+                                        label={deviceName}
+                                        size="small"
+                                        sx={{
+                                            bgcolor: 'rgba(124, 58, 237, 0.06)',
+                                            color: 'var(--primary)',
+                                            fontWeight: 700, fontSize: '0.6rem',
+                                            border: '1px solid rgba(124, 58, 237, 0.15)'
+                                        }}
+                                    />
+                                )}
+                            </Stack>
+
+                            {/* Signal strength bar */}
+                            <Box sx={{ mt: 2 }}>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={getSignalStrength()}
+                                    sx={{
+                                        height: 8, borderRadius: 4,
+                                        bgcolor: 'rgba(0,0,0,0.06)',
+                                        '& .MuiLinearProgress-bar': {
+                                            bgcolor: getSignalColor(),
+                                            borderRadius: 4,
+                                            transition: 'transform 0.3s ease'
+                                        }
+                                    }}
+                                />
+                                <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.5 }}>
+                                    <Typography variant="caption" sx={{ color: 'var(--text-secondary)', fontSize: '0.6rem', fontWeight: 700 }}>-100 dBm</Typography>
+                                    <Typography variant="caption" sx={{ color: getSignalColor(), fontSize: '0.6rem', fontWeight: 900 }}>
+                                        THRESHOLD: {PROXIMITY_THRESHOLD} dBm
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ color: 'var(--text-secondary)', fontSize: '0.6rem', fontWeight: 700 }}>-40 dBm</Typography>
+                                </Stack>
+                            </Box>
+
+                            {/* RSSI History sparkline */}
+                            {rssiHistory.length > 1 && (
+                                <Box sx={{ mt: 2, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '2px', height: 30 }}>
+                                    {rssiHistory.slice(-15).map((val, idx) => {
+                                        const height = Math.max(4, ((val + 100) / 60) * 30);
+                                        const isAboveThreshold = val >= PROXIMITY_THRESHOLD;
+                                        return (
+                                            <Box
+                                                key={idx}
+                                                sx={{
+                                                    width: 4, height: `${height}px`,
+                                                    bgcolor: isAboveThreshold ? '#10B981' : 'rgba(124, 58, 237, 0.3)',
+                                                    borderRadius: 1,
+                                                    transition: 'height 0.2s ease'
+                                                }}
+                                            />
+                                        );
+                                    })}
+                                </Box>
+                            )}
+                        </Box>
+                    )}
+
+                    {rssi === null && <LinearProgress sx={{ height: 6, borderRadius: 3 }} />}
+
+                    <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        Need {REQUIRED_CONFIRMATIONS} consecutive readings above {PROXIMITY_THRESHOLD} dBm to verify
+                    </Typography>
                 </Box>
             )}
 
+            {/* Verified */}
             {status === "verified" && (
                 <Box sx={{
                     mt: 3, p: 3, borderRadius: 4,
@@ -189,16 +381,50 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
                             SECURE PROXIMITY VERIFIED
                         </Typography>
                     </Stack>
-                    <Typography variant="h3" sx={{ fontWeight: 900, color: '#10B981', mb: 1 }}>
-                        {simulatedRssi}<Typography component="span" variant="h6" sx={{ ml: 0.5 }}>dBm</Typography>
+                    <Typography variant="h3" sx={{ fontWeight: 900, color: '#10B981', mb: 1, fontFamily: 'monospace' }}>
+                        {rssi}<Typography component="span" variant="h6" sx={{ ml: 0.5 }}>dBm</Typography>
                     </Typography>
+                    {deviceName && (
+                        <Typography variant="caption" sx={{ display: 'block', color: 'var(--text-secondary)', fontWeight: 700, mb: 1 }}>
+                            DEVICE: {deviceName}
+                        </Typography>
+                    )}
                     <Typography variant="caption" sx={{ display: 'block', color: 'var(--text-secondary)', fontWeight: 700 }}>
                         PROCEEDING IN {countdown}s
                     </Typography>
                 </Box>
             )}
 
-            {error && (
+            {/* Rejected */}
+            {status === "rejected" && (
+                <Box sx={{
+                    mt: 3, p: 4, borderRadius: 4,
+                    bgcolor: 'rgba(239, 68, 68, 0.05)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    textAlign: 'center'
+                }}>
+                    <Typography variant="h5" sx={{ fontWeight: 900, color: '#EF4444', mb: 1 }}>
+                        ⚠ OUTSIDE CLASSROOM
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'var(--text-secondary)', mb: 1 }}>
+                        {rssi !== null
+                            ? `Last RSSI: ${rssi} dBm (need ≥ ${PROXIMITY_THRESHOLD} dBm)`
+                            : 'No beacon signal detected.'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'var(--text-secondary)', mb: 3 }}>
+                        Please ensure you are near the BLE beacon and try again.
+                    </Typography>
+                    <Button
+                        className="premium-button"
+                        onClick={() => { setStatus("idle"); setError(null); setRssi(null); setRssiHistory([]); confirmCountRef.current = 0; }}
+                        sx={{ py: 1.5 }}
+                    >
+                        RETRY PROXIMITY CHECK
+                    </Button>
+                </Box>
+            )}
+
+            {error && status !== "rejected" && (
                 <Alert severity="error" sx={{ mt: 3, fontWeight: 700, borderRadius: 2 }}>
                     {error}
                 </Alert>
