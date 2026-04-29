@@ -91,6 +91,13 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
             setError(null);
             setStatus("scanning");
 
+            // Check if Web Bluetooth is available in this browser
+            if (!navigator.bluetooth) {
+                setError("Bluetooth is not supported in this browser. Please use Chrome on desktop, or install the native app on your phone.");
+                setStatus("idle");
+                return;
+            }
+
             const bleDevice = await bleService.startWebScan();
             console.log(`SUBJECT HANDSHAKE: Device[${bleDevice.name}] confirmed.`);
 
