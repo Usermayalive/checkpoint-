@@ -16,7 +16,7 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
     const [simulatedRssi, setSimulatedRssi] = useState(-90);
 
     // Provide indication of whether we are running native real RSSI or web demo
-    const [isNativeMode, setIsNativeMode] = useState(bleService.isNative);
+    const [isNativeMode] = useState(bleService.isNative);
 
     useEffect(() => {
         // Initialize Capacitor BLE if native
@@ -110,7 +110,6 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
             setStatus("handshake");
 
             // Web fallback: simulate RSSI fluctuating since we can't scan passively
-            let currentRssi = -85;
             const interval = setInterval(() => {
                 setSimulatedRssi(prev => {
                     const fluctuation = Math.floor(Math.random() * 5) - 2;
@@ -148,25 +147,7 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
         }
     };
 
-    const handleSimulation = () => {
-        setStatus("scanning");
-        setTimeout(() => {
-            setStatus("handshake");
-            let currentRssi = -82;
-            const interval = setInterval(() => {
-                setSimulatedRssi(prev => {
-                    const step = Math.floor(Math.random() * 8) + 2;
-                    return Math.min(-55, prev + step);
-                });
-            }, 400);
-
-            setTimeout(() => {
-                clearInterval(interval);
-                setStatus("verified");
-                setCountdown(VERIFIED_DISPLAY_SECONDS);
-            }, 2500);
-        }, 1500);
-    };
+    // handleSimulation removed — was unused and caused ESLint CI failure
 
     return (
         <Box className="glass-card border-light animate-fade-in" sx={{ p: 4, textAlign: 'center', maxWidth: 500, mx: 'auto', position: 'relative', borderRadius: 6 }}>

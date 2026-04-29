@@ -2,7 +2,7 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import { FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 import { Box, Button, Typography, CircularProgress, Stack, LinearProgress } from '@mui/material';
-import { Security, CameraAlt, Fingerprint, Warning } from '@mui/icons-material';
+import { Fingerprint, Warning } from '@mui/icons-material';
 import { attendanceService } from '../services/attendanceService';
 
 const BLINK_THRESHOLD = 0.35;
@@ -88,58 +88,8 @@ const FaceRecognition = ({ onVerificationComplete }) => {
         return variance;
     };
 
-    // ── Anti-Spoofing: Micro-Movement Analysis ──
-    // Real faces have natural micro-movements between frames.
-    // A photo held up moves uniformly (all landmarks shift together).
-    // A video on screen also tends to have less micro-variation.
-    const analyzeMicroMovements = (landmarks) => {
-        const history = landmarkHistoryRef.current;
-
-        // Use a set of key landmark indices (nose tip, chin, forehead, cheeks)
-        const keyIndices = [1, 4, 5, 6, 10, 152, 234, 454]; // nose, forehead, chin, cheeks
-
-        const currentPositions = keyIndices.map(i => ({
-            x: landmarks[i]?.x || 0,
-            y: landmarks[i]?.y || 0
-        }));
-
-        history.push(currentPositions);
-        if (history.length > MICRO_MOVEMENT_WINDOW) {
-            history.shift();
-        }
-
-        if (history.length < 5) return { isNatural: true, uniformity: 0 };
-
-        // Calculate per-landmark movement variance
-        const movementVariances = keyIndices.map((_, idx) => {
-            const positions = history.map(frame => frame[idx]);
-            const dxs = [];
-            const dys = [];
-            for (let i = 1; i < positions.length; i++) {
-                dxs.push(positions[i].x - positions[i - 1].x);
-                dys.push(positions[i].y - positions[i - 1].y);
-            }
-            const meanDx = dxs.reduce((a, b) => a + b, 0) / dxs.length;
-            const meanDy = dys.reduce((a, b) => a + b, 0) / dys.length;
-            const varDx = dxs.reduce((sum, d) => sum + Math.pow(d - meanDx, 2), 0) / dxs.length;
-            const varDy = dys.reduce((sum, d) => sum + Math.pow(d - meanDy, 2), 0) / dys.length;
-            return varDx + varDy;
-        });
-
-        const totalVariance = movementVariances.reduce((a, b) => a + b, 0) / movementVariances.length;
-
-        // Check uniformity: if all landmarks move the exact same way, it's a held-up photo/device
-        const maxVar = Math.max(...movementVariances);
-        const minVar = Math.min(...movementVariances);
-        const uniformity = maxVar > 0.0001 ? minVar / maxVar : 1;
-        // uniformity close to 1 = all landmarks move identically = suspicious
-
-        return {
-            isNatural: totalVariance > MICRO_MOVEMENT_MIN || uniformity < 0.85,
-            uniformity,
-            totalVariance
-        };
-    };
+    // analyzeMicroMovements removed — was unused and caused ESLint CI failure
+    // Can be re-added when integrated into the detection pipeline
 
     // ── Anti-Spoofing: Head Turn Detection ──
     const detectHeadTurn = (landmarks) => {
