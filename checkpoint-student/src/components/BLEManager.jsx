@@ -7,7 +7,7 @@ const VERIFIED_DISPLAY_SECONDS = 5;
 
 // The RSSI value required to count as "verified"
 // Depends on beacon transmit power and environment. -65 is a good start.
-const NATIVE_PROXIMITY_THRESHOLD = -65; 
+const NATIVE_PROXIMITY_THRESHOLD = -65;
 
 const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
     const [status, setStatus] = useState("idle"); // idle, scanning, handshake, verified
@@ -227,13 +227,7 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
                     >
                         INITIATE SECURE HANDSHAKE
                     </Button>
-                    <Button
-                        variant="text"
-                        onClick={handleSimulation}
-                        sx={{ color: 'var(--text-secondary)', fontWeight: 800, fontSize: '0.7rem', letterSpacing: 2 }}
-                    >
-                        BYPASS HARDWARE (DEMO MODE)
-                    </Button>
+
                 </Stack>
             )}
 
@@ -242,14 +236,14 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
                     <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 900, color: 'var(--secondary)' }}>
                         {isNativeMode ? `READING SIGNAL DISTANCE...` : `CALIBRATING SIGNAL DISTANCE...`}
                     </Typography>
-                    
+
                     {/* Display live RSSI in handshake phase for Native mode */}
                     {isNativeMode && simulatedRssi !== -100 && (
                         <Typography variant="body2" sx={{ color: 'var(--primary)', fontWeight: 700, mb: 1 }}>
                             Current RSSI: {simulatedRssi} dBm
                         </Typography>
                     )}
-                    
+
                     <LinearProgress sx={{ height: 6, borderRadius: 3 }} />
                 </Box>
             )}

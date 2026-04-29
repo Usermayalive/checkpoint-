@@ -14,6 +14,7 @@ const StudentPage = () => {
                 backdropFilter: 'blur(20px)',
                 borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
                 color: 'var(--text-primary)',
+                paddingTop: 'env(safe-area-inset-top)',
             }}>
                 <Container maxWidth="lg">
                     <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 0 } }}>

@@ -517,7 +517,7 @@ const FaceRecognition = ({ onVerificationComplete }) => {
                     <Button
                         className="premium-button"
                         onClick={startLivenessCheck}
-                        disabled={capturing || !faceDetected}
+                        disabled={capturing || (!faceDetected && modelsLoaded)}
                         sx={{ minWidth: 260, opacity: faceDetected ? 1 : 0.5 }}
                     >
                         {capturing ? "VERIFYING LIVENESS..." : faceDetected ? "AUTHORIZE BIOMETRIC SCAN" : "AWAITING SUBJECT"}
