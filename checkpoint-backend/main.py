@@ -26,7 +26,7 @@ registered_students = []
 DB_PATH = os.path.join(BASE_DIR, "checkpoint.db")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-LANDMARK_THRESHOLD = float(os.getenv("LANDMARK_THRESHOLD", "0.55"))
+LANDMARK_THRESHOLD = float(os.getenv("LANDMARK_THRESHOLD", "4.8"))
 
 # API Key for protecting mutating endpoints
 API_KEY = os.getenv("API_KEY", "")
@@ -258,46 +258,40 @@ def verify_face(file: UploadFile = File(...)):
                 if matches and len(matches) > 0:
                     best_match = matches[0]
                     min_distance = float(best_match.get("dist", 1.0))
-                    similarity = max(0.0, round(100.0 * (1.0 - min_distance / LANDMARK_THRESHOLD), 1))
+                    similarity = max(0.0, min(100.0, round(100.0 * (1.0 - min_distance / 6.0), 1)))
 
+                    print(f"✓ Face match confirmed: {best_match.get('name')} (MIS: {best_match.get('mis')}, Dist: {min_distance:.4f})")
                     return {
                         "verified": True,
                         "name": best_match.get("name"),
                         "mis": best_match.get("mis"),
-                        "distance": min_distance,
+                        "distance": round(min_distance, 4),
                         "confidence": similarity
                     }
+                else:
+                    # Query without threshold to get closest distance for debugging
+                    unfiltered = supabase.rpc(
+                        'match_face',
+                        {
+                            'query_embedding': query_list,
+                            'match_threshold': 50.0
+                        }
+                    ).execute()
+                    closest = unfiltered.data[0] if unfiltered.data else None
+                    closest_dist = round(float(closest["dist"]), 2) if closest else "N/A"
+                    closest_name = closest["name"] if closest else "None"
+                    print(f"⚠ Face not recognized. Closest: {closest_name} (dist: {closest_dist}, threshold: {LANDMARK_THRESHOLD})")
+                    return {
+                        "verified": False,
+                        "message": f"Face not recognized (closest: {closest_name}, dist: {closest_dist})"
+                    }
             except Exception as e:
-                print(f"Supabase RPC match failed ({e}), falling back to local matching...")
+                print(f"Supabase RPC match error ({e}), falling back...")
 
-        # Local Euclidean Matching
-        if not registered_students:
-            return {"verified": False, "message": "No registered students in database"}
-
-        best_match = None
-        min_distance = float("inf")
-
-        for item in registered_students:
-            dist = float(np.linalg.norm(query_normalized - item["embedding"]))
-            if dist < min_distance:
-                min_distance = dist
-                best_match = item
-
-        if best_match and min_distance <= LANDMARK_THRESHOLD:
-            similarity = max(0.0, round(100.0 * (1.0 - min_distance / LANDMARK_THRESHOLD), 1))
-            return {
-                "verified": True,
-                "name": best_match["name"],
-                "mis": best_match["mis"],
-                "distance": round(min_distance, 4),
-                "confidence": similarity
-            }
-        else:
-            return {
-                "verified": False,
-                "message": "Face not recognized",
-                "best_distance": round(min_distance, 4) if best_match else None
-            }
+        return {
+            "verified": False,
+            "message": "Face not recognized in database"
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
