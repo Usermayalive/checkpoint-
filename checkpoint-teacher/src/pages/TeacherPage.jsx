@@ -56,7 +56,11 @@ const TeacherPage = () => {
                                 <Settings fontSize="small" />
                             </IconButton>
                             <IconButton
-                                onClick={() => signOut(auth)}
+                                onClick={() => {
+                                    localStorage.removeItem('teacher_demo_user');
+                                    signOut(auth);
+                                    window.location.href = '/login';
+                                }}
                                 sx={{ color: 'var(--error-main)', p: 1, ml: 1, bgcolor: 'rgba(239, 68, 68, 0.05)', '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' } }}>
                                 <Logout fontSize="small" />
                             </IconButton>

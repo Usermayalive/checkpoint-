@@ -22,38 +22,43 @@ Checkpoint is a full-stack solution designed for automated attendance tracking u
 - **Browser AI**: face-api.js, MediaPipe
 - **Bluetooth**: Web Bluetooth API for BLE Beacon integration
 
-## ⚙️ Setup Instructions
+## ⚙️ How to Run the Applications
 
-### 1. Backend Setup
+### 1. Backend Server (Port 8000)
 ```bash
 cd checkpoint-backend
-# Install dependencies
-pip install -r requirements.txt
-# Run the server
+source venv/bin/activate
 python main.py
 ```
-The backend will run on `http://localhost:8000`.
+> Running on `http://localhost:8000` (Health Check: `/health`, Verification: `/verify`, Attendance: `/attendance`)
 
-### 2. Frontend Setup
+---
+
+### 2. Student Application (Port 3000)
 ```bash
-cd checkpoint-website
-# Install dependencies
-npm install
-# Start the development server
+cd checkpoint-student
 npm start
 ```
-The frontend will run on `http://localhost:3000`.
+> Running on `http://localhost:3000` (BLE Proximity Lock + Liveness Face Verification + Instant 1-Click Scan)
 
-## 🔒 Security
-- **API Keys**: Uses environment-based configuration (refer to `.env` setup guide).
-- **Privacy**: Face data is processed locally/privately depending on deployment strategy.
+---
+
+### 3. Teacher Dashboard (Port 3001)
+```bash
+cd checkpoint-teacher
+npm start
+```
+> Running on `http://localhost:3001` (4-Digit Code Session Generator + Live Attendance Real-Time Stream + Export)
+
+---
 
 ## 📁 Project Structure
 ```text
 checkpoint/
-├── checkpoint-backend/    # FastAPI server & face recognition logic
-├── checkpoint-website/    # React frontend & UI components
-└── README.md              # Project documentation
+├── checkpoint-backend/    # FastAPI AI Biometric Server & Supabase pgvector engine
+├── checkpoint-student/    # Dedicated Student Check-In Web & Mobile App (Port 3000)
+├── checkpoint-teacher/    # Dedicated Teacher Admin Console & Session Manager (Port 3001)
+└── README.md              # Project Documentation
 ```
 
 ---

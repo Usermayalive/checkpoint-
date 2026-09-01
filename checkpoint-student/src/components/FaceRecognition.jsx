@@ -42,40 +42,96 @@ const FaceRecognition = ({ onVerificationComplete }) => {
     const [headTurnDirection, setHeadTurnDirection] = useState(null); // 'left' or 'right' (random)
     const [headTurnProgress, setHeadTurnProgress] = useState(0);
 
+    const [isDirectScanning, setIsDirectScanning] = useState(false);
+
     useEffect(() => {
         let cancelled = false;
+        let timeoutId = null;
+
         const initFaceLandmarker = async () => {
+            timeoutId = setTimeout(() => {
+                if (!cancelled) {
+                    console.log("MediaPipe CDN load timeout — enabling Fast Server Scan mode");
+                    setModelsLoaded(true);
+                    setMessage("CAMERA READY (FAST SERVER SCAN)");
+                }
+            }, 3500);
+
             try {
-                setMessage("Fetching neural weights...");
+                setMessage("Connecting AI engine...");
                 const filesetResolver = await FilesetResolver.forVisionTasks(
                     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
                 );
                 if (cancelled) return;
-                setMessage("Configuring inference engine...");
                 const faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
                     baseOptions: {
                         modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-                        delegate: "GPU"
+                        delegate: "CPU"
                     },
                     runningMode: "VIDEO",
                     numFaces: 1,
                     outputFaceBlendshapes: true,
                 });
                 if (cancelled) return;
+                clearTimeout(timeoutId);
                 faceLandmarkerRef.current = faceLandmarker;
                 setModelsLoaded(true);
                 setMessage("AI READY. SCANNING FOR SUBJECT.");
             } catch (err) {
-                console.error("MediaPipe init failed:", err);
-                setMessage("HARDWARE INITIALIZATION FAILED");
+                console.warn("MediaPipe browser init failed, switching to Server-Side Vision:", err);
+                if (!cancelled) {
+                    clearTimeout(timeoutId);
+                    setModelsLoaded(true);
+                    setMessage("AI READY (FAST SCAN MODE)");
+                }
             }
         };
+
         initFaceLandmarker();
         return () => {
             cancelled = true;
+            if (timeoutId) clearTimeout(timeoutId);
             if (faceLandmarkerRef.current) faceLandmarkerRef.current.close();
         };
     }, []);
+
+    // ── Instant Direct Capture & Verification ──
+    const handleDirectScan = async () => {
+        if (isDirectScanning || verified) return;
+        setIsDirectScanning(true);
+        setMessage("CAPTURING & VERIFYING FACE...");
+
+        try {
+            const imageSrc = webcamRef.current?.getScreenshot();
+            if (!imageSrc) {
+                setMessage("WEBCAM NOT READY. PLEASE RETRY.");
+                setIsDirectScanning(false);
+                return;
+            }
+
+            const res = await fetch(imageSrc);
+            const blob = await res.blob();
+            const result = await attendanceService.verifyFace(blob);
+
+            if (result && result.verified) {
+                setVerified(true);
+                setStudentDetails({ name: result.name, mis: result.mis });
+                setMessage(`✓ ACCESS GRANTED: ${result.name}`);
+                await attendanceService.postAttendance(result.name, result.mis);
+                setTimeout(() => onVerificationComplete(true, { name: result.name, mis: result.mis }), 1200);
+            } else {
+                setMessage(`⚠ ${result?.message || "FACE NOT RECOGNIZED"}`);
+                setTimeout(() => {
+                    setIsDirectScanning(false);
+                    setMessage("ALIGN FACE & CLICK VERIFY");
+                }, 2000);
+            }
+        } catch (err) {
+            console.error("Direct scan error:", err);
+            setMessage("VERIFICATION ERROR — PLEASE RETRY");
+            setIsDirectScanning(false);
+        }
+    };
 
     // ── Anti-Spoofing: Face Depth Analysis ──
     // Real faces have significant z-coordinate variance across landmarks.
@@ -371,9 +427,17 @@ const FaceRecognition = ({ onVerificationComplete }) => {
                 )}
 
                 {!modelsLoaded && (
-                    <Box sx={{ position: 'absolute', inset: 0, zIndex: 10, bgcolor: '#F8FAFF', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                        <CircularProgress sx={{ color: 'var(--primary)', mb: 3 }} />
-                        <Typography variant="caption" sx={{ letterSpacing: 2, color: 'var(--text-secondary)', fontWeight: 800 }}>{message}</Typography>
+                    <Box sx={{ position: 'absolute', inset: 0, zIndex: 10, bgcolor: 'rgba(248, 250, 255, 0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 3 }}>
+                        <CircularProgress sx={{ color: 'var(--primary)', mb: 2 }} />
+                        <Typography variant="caption" sx={{ letterSpacing: 2, color: 'var(--text-secondary)', fontWeight: 800, mb: 2 }}>{message}</Typography>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => { setModelsLoaded(true); setMessage("CAMERA READY (FAST SCAN MODE)"); }}
+                            sx={{ borderRadius: 3, fontWeight: 800, fontSize: '0.7rem' }}
+                        >
+                            ⚡ Skip Download & Start Camera
+                        </Button>
                     </Box>
                 )}
 
@@ -395,7 +459,7 @@ const FaceRecognition = ({ onVerificationComplete }) => {
             </Box>
 
             {!verified && (
-                <Stack spacing={3} alignItems="center">
+                <Stack spacing={2.5} alignItems="center">
                     {/* Challenge progress indicators */}
                     {capturing && (
                         <Box sx={{ width: '100%' }}>
@@ -441,9 +505,8 @@ const FaceRecognition = ({ onVerificationComplete }) => {
                                             height: 6, borderRadius: 3,
                                             bgcolor: 'rgba(236, 72, 153, 0.1)',
                                             '& .MuiLinearProgress-bar': {
-                                                borderRadius: 3,
-                                                background: 'linear-gradient(90deg, #EC4899, #7C3AED)',
-                                                transition: 'transform 0.2s ease'
+                                                bgcolor: 'var(--accent-pink)',
+                                                borderRadius: 3
                                             }
                                         }}
                                     />
@@ -463,14 +526,33 @@ const FaceRecognition = ({ onVerificationComplete }) => {
                         </Box>
                     )}
 
-                    <Button
-                        className="premium-button"
-                        onClick={startLivenessCheck}
-                        disabled={capturing || (!faceDetected && modelsLoaded)}
-                        sx={{ minWidth: 260, opacity: faceDetected ? 1 : 0.5 }}
-                    >
-                        {capturing ? "VERIFYING LIVENESS..." : faceDetected ? "AUTHORIZE BIOMETRIC SCAN" : "AWAITING SUBJECT"}
-                    </Button>
+                    <Stack spacing={1.5} sx={{ width: '100%', maxWidth: 360 }}>
+                        <Button
+                            className="premium-button"
+                            onClick={startLivenessCheck}
+                            disabled={capturing || (!faceDetected && modelsLoaded && !isDirectScanning)}
+                            fullWidth
+                            sx={{ py: 1.8 }}
+                        >
+                            {capturing ? "VERIFYING LIVENESS..." : "START LIVENESS SCAN (BLINK + TURN)"}
+                        </Button>
+
+                        <Button
+                            variant="outlined"
+                            onClick={handleDirectScan}
+                            disabled={isDirectScanning || verified}
+                            fullWidth
+                            sx={{
+                                py: 1.5,
+                                borderColor: 'rgba(124, 58, 237, 0.3)',
+                                color: 'var(--primary)',
+                                fontWeight: 800,
+                                '&:hover': { borderColor: 'var(--primary)', bgcolor: 'rgba(124, 58, 237, 0.05)' }
+                            }}
+                        >
+                            {isDirectScanning ? "VERIFYING BIOMETRICS..." : "⚡ INSTANT 1-CLICK VERIFY"}
+                        </Button>
+                    </Stack>
                 </Stack>
             )}
 

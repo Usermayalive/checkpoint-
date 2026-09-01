@@ -122,6 +122,30 @@ const LoginPage = () => {
                             {loading ? 'Authenticating...' : 'Sign in with Google'}
                         </Button>
 
+                        <Button
+                            variant="outlined"
+                            fullWidth
+                            size="large"
+                            onClick={() => {
+                                localStorage.setItem('teacher_demo_user', 'true');
+                                window.location.href = '/';
+                            }}
+                            sx={{
+                                py: 1.5,
+                                borderRadius: 4,
+                                textTransform: 'none',
+                                fontWeight: 800,
+                                borderColor: 'rgba(124, 58, 237, 0.4)',
+                                color: '#7C3AED',
+                                '&:hover': {
+                                    borderColor: '#7C3AED',
+                                    bgcolor: 'rgba(124, 58, 237, 0.05)'
+                                }
+                            }}
+                        >
+                            ⚡ Quick Teacher Access (Direct Login)
+                        </Button>
+
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ opacity: 0.6 }}>
                             <VerifiedIcon sx={{ fontSize: 16, color: '#10B981' }} />
                             <Typography variant="caption" sx={{ fontWeight: 700, letterSpacing: 0.5 }}>

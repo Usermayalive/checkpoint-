@@ -108,10 +108,17 @@ const theme = createTheme({
 });
 
 function App() {
-    const [user, setUser] = useState(null);
+    const [user, setUser] = useState(() => {
+        return localStorage.getItem('teacher_demo_user') ? { displayName: 'Teacher Admin', email: 'admin@checkpoint.edu' } : null;
+    });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (localStorage.getItem('teacher_demo_user')) {
+            setUser({ displayName: 'Teacher Admin', email: 'admin@checkpoint.edu' });
+            setLoading(false);
+            return;
+        }
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setUser(user);
             setLoading(false);

@@ -204,24 +204,22 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
     return (
         <Box className="glass-card border-light animate-fade-in" sx={{ p: 4, textAlign: 'center', maxWidth: 520, mx: 'auto', position: 'relative', borderRadius: 6 }}>
             {/* Platform indicator */}
-            <Tooltip title={isNative
-                ? "Running Native Capacitor BLE — Real hardware RSSI from background LE scan"
-                : "Running Web Bluetooth — Real RSSI via watchAdvertisements() API (Chrome 93+)"
-            }>
-                <Chip
-                    label={isNative ? "NATIVE BLE" : "WEB BLUETOOTH"}
-                    size="small"
-                    sx={{
-                        position: 'absolute', top: 16, left: 16,
-                        bgcolor: isNative ? 'rgba(16, 185, 129, 0.08)' : 'rgba(14, 165, 233, 0.08)',
-                        color: isNative ? '#10B981' : '#0EA5E9',
-                        fontWeight: 900, fontSize: '0.6rem', letterSpacing: 1,
-                        border: `1px solid ${isNative ? 'rgba(16, 185, 129, 0.2)' : 'rgba(14, 165, 233, 0.2)'}`
-                    }}
-                />
-            </Tooltip>
+            <Chip
+                label={isNative ? "NATIVE BLUETOOTH LE" : "WEB BLUETOOTH"}
+                size="small"
+                sx={{
+                    position: 'absolute', top: 16, left: 16,
+                    bgcolor: isNative ? 'rgba(139, 92, 246, 0.15)' : 'rgba(14, 165, 233, 0.08)',
+                    color: isNative ? 'var(--primary)' : '#0EA5E9',
+                    fontWeight: 900, fontSize: '0.6rem', letterSpacing: 1,
+                    border: isNative ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(14, 165, 233, 0.2)'
+                }}
+            />
 
-            <Tooltip title="Real-time BLE proximity verification using hardware RSSI signal strength">
+            <Tooltip title={isNative
+                ? "Real-time BLE proximity verification using hardware RSSI signal strength via Capacitor Bluetooth LE"
+                : "Real-time BLE proximity verification using hardware RSSI signal strength via Web Bluetooth API"
+            }>
                 <Box sx={{ position: 'absolute', top: 16, right: 16, cursor: 'help', opacity: 0.6 }}>
                     <InfoOutlined fontSize="small" color="primary" />
                 </Box>
@@ -265,16 +263,26 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
                 {status === "verified" && <BluetoothConnected sx={{ fontSize: 80, color: '#10B981', filter: 'drop-shadow(0 0 15px rgba(16, 185, 129, 0.4))' }} />}
             </Box>
 
-            {/* Idle: Start Button (NO demo button) */}
+            {/* Idle: Start Button */}
             {status === "idle" && (
-                <Button
-                    className="premium-button"
-                    onClick={startProximityHandshake}
-                    fullWidth
-                    sx={{ py: 2 }}
-                >
-                    INITIATE SECURE HANDSHAKE
-                </Button>
+                <Stack spacing={2}>
+                    <Button
+                        className="premium-button"
+                        onClick={startProximityHandshake}
+                        fullWidth
+                        sx={{ py: 2 }}
+                    >
+                        INITIATE SECURE HANDSHAKE
+                    </Button>
+                    <Button
+                        variant="text"
+                        size="small"
+                        onClick={handleSimulateProximity}
+                        sx={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 1 }}
+                    >
+                        ⚡ Bypass Proximity (Demo Mode)
+                    </Button>
+                </Stack>
             )}
 
             {/* Handshake: Real-time RSSI Display */}
