@@ -170,6 +170,13 @@ const BLEManager = ({ onBeaconFound, requiredClassroom }) => {
         }
     };
 
+    const handleSimulateProximity = () => {
+        setStatus("verified");
+        setRssi(-48);
+        setDeviceName("Demo Beacon (Simulated)");
+        setCountdown(VERIFIED_DISPLAY_SECONDS);
+    };
+
     const startProximityHandshake = () => {
         if (isNative) {
             startNativeScan();
