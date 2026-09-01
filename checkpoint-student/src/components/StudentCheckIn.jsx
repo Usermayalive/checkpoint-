@@ -148,6 +148,20 @@ const StudentCheckIn = () => {
                         >
                             INITIATE CHECK-IN <KeyboardDoubleArrowRight />
                         </Button>
+
+                        <Button
+                            variant="text"
+                            size="small"
+                            onClick={() => {
+                                setActiveSession({ id: 'demo-session-101', code: '8888', courseName: 'CS401: Biometrics & AI', classroomId: '101' });
+                                setSessionCode('8888');
+                                setError('');
+                                handleNext();
+                            }}
+                            sx={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: 700, letterSpacing: 1 }}
+                        >
+                            ⚡ Fast-Track Demo Check-In
+                        </Button>
                     </Stack>
                 </Box>
             )}
