@@ -11,7 +11,7 @@ import {
     getDocs,
     limit
 } from 'firebase/firestore';
-const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || (typeof window !== 'undefined' && window.location.hostname ? `http://${window.location.hostname}:8000` : 'http://localhost:8000');
+const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://checkpoint-production-ef9f.up.railway.app');
 
 export const attendanceService = {
     // Create a new session
